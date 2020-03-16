@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'dog.dart';
+import 'calendar.dart';
 
-void main() => runApp(doggoApp());
+void main() => runApp(DoggoApp());
 
-class doggoApp extends StatelessWidget {
+class DoggoApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
@@ -11,31 +13,24 @@ class doggoApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.teal
       ),
-      home: DogsPage(title: 'doggo'),
+      home: RootPage(title: 'doggo'),
     );
   }
 }
 
-class DogsPage extends StatefulWidget {
-  DogsPage({Key key, this.title}) : super(key: key);
-
+class RootPage extends StatefulWidget {
   final String title;
+  RootPage({Key key, this.title = 'doggo'}) : super(key: key);
 
   @override
-  _DogsPageState createState() => _DogsPageState();
+  _RootPageState createState() => _RootPageState();
 }
 
-class _DogsPageState extends State<DogsPage> {
+class _RootPageState extends State<RootPage> {
   static const TextStyle optionStyle = TextStyle(fontSize: 30, fontWeight: FontWeight.bold);
-  static const List<Widget> _widgetOptions = <Widget>[
-    Text(
-      'Calendar',
-      style: optionStyle,
-    ),
-    Text(
-      'Dogs',
-      style: optionStyle,
-    ),
+  static List<Widget> bodyList = <Widget>[
+    CalendarPage(title: 'Calendar'),
+    DogPage(),
     Text(
       'Vet',
       style: optionStyle,
@@ -53,10 +48,11 @@ class _DogsPageState extends State<DogsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.title),
+        title: Text(widget.title)
       ),
-      body: Center(
-        child: _widgetOptions.elementAt(_selectedIndex)
+      body: IndexedStack(
+        children: bodyList,
+        index:_selectedIndex
       ),
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
@@ -80,12 +76,3 @@ class _DogsPageState extends State<DogsPage> {
     );
   }
 }
-
-// class CalendarPage extends StatefulWidget {
-//   CalendarPage({Key key, this.title}) : super(key: key);
-
-//   final String title;
-
-//   @override
-//   _CalendarPageState createState() => _CalendarPageState();
-// }
