@@ -41,5 +41,9 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>NSCameraUsageDescription</key>
+	<string>Enable Doggo to access your gallery to choose your photo</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Enable Doggo to access your camera to capture your photo</string>
 </dict>
 </plist>
