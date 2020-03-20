@@ -1,8 +1,17 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:camera/camera.dart';
-import 'package:path/path.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'package:image_picker/image_picker.dart';
+
+class Dog with ChangeNotifier {
+  Image image;
+  String name;
+  DateTime bday;
+
+  Dog(Image i, String n, DateTime b) {
+    image = i; name = n; bday = b;
+  }
+}
 
 class DogPage extends StatefulWidget {
   DogPage({Key key}) : super(key: key);
@@ -14,10 +23,14 @@ class DogPage extends StatefulWidget {
 class _DogPageState extends State<DogPage> {
   List<DogCard> dogs = <DogCard>[];
 
-  void addDog(String name, String bday) {
-    dogs.add(DogCard(name: name, bday: bday));
+  void _retrieveFromAddDogPage(BuildContext context, Widget page) async {
+    final dog = await Navigator.push(
+    context,
+    MaterialPageRoute(builder: (context) => page),
+    ) as Dog;
+    if (dog != null)
+      dogs.add(DogCard(dog: dog));
   }
-
   void removeDog(int index) {
     dogs.removeAt(index);
   }
@@ -29,10 +42,7 @@ class _DogPageState extends State<DogPage> {
           children: <Widget>[
             FloatingActionButton(
             onPressed: () {
-                Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => AddDogPage()),
-              );
+              _retrieveFromAddDogPage(context, AddDogPage());
             },
             child: Icon(Icons.add),
             mini: true,
@@ -48,26 +58,20 @@ class _DogPageState extends State<DogPage> {
   }
 }
 
-class DogCard extends StatefulWidget {
-  DogCard({Key key, this.name, this.bday}) : super(key: key);
+class DogCard extends StatelessWidget {
+  DogCard({Key key, this.dog}) : super(key: key);
 
-  final String name;
-  final String bday;
+  final Dog dog;
 
-  @override
-  State<StatefulWidget> createState() => _DogCardState();
-}
-
-class _DogCardState extends State<DogCard> {
   Widget build(BuildContext context) {
     return Center(
       child: Card(
         child: Column(
           children: <Widget>[
             ListTile(
-              leading: Image(image: AssetImage('images/Goose.png')),
-              title: Text(widget.name),
-              subtitle: Text(widget.bday)
+              leading: ClipRRect(child: dog.image, borderRadius: BorderRadius.circular(10),),
+              title: Text(dog.name),
+              subtitle: Text(dog.bday.toString().split(' ')[0])
             )
           ]
         ),
@@ -81,15 +85,42 @@ class _DogCardState extends State<DogCard> {
 
 class AddDogPage extends StatefulWidget {
   AddDogPage({Key key}) : super(key: key);
-  
+
   @override
   State<AddDogPage> createState() => _AddDogPageState();
 }
 
+enum _ImageSource {
+  gallery,
+  camera
+}
+
 class _AddDogPageState extends State<AddDogPage> {
   final _formKey = GlobalKey<FormState>();
+  Image image = Image(image:AssetImage('images/Goose.png'));
   String name;
   DateTime bday = DateTime.now();
+  final _nameController = TextEditingController();
+
+  void _retrieveImage(BuildContext context, _ImageSource source) async {
+    File img;
+    if (source == _ImageSource.camera)
+      img = await ImagePicker.pickImage(source: ImageSource.camera);
+    else if (source == _ImageSource.gallery)
+      img = await ImagePicker.pickImage(source: ImageSource.gallery);
+
+    if (img != null) {
+      final cropped = await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => CropPictureScreen(imageFile: img.path)),
+      ) as Image;
+      setState(() {
+        if (cropped != null)
+          image = cropped;
+      });
+    }
+  }
+
   Future<Null> _selectDate(BuildContext context) async {
     final DateTime picked = await showDatePicker(
       context: context,
@@ -98,9 +129,13 @@ class _AddDogPageState extends State<AddDogPage> {
       lastDate: DateTime.now(),
       initialDatePickerMode: DatePickerMode.year);
     if (picked != null && picked != bday)
-    setState(() {
       bday = picked;
-    });
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
   }
 
   @override
@@ -114,16 +149,22 @@ class _AddDogPageState extends State<AddDogPage> {
               Container(
                 child: Padding(
                     padding: EdgeInsets.all(12.0),
-                    child: FlatButton(
+                    child: PopupMenuButton<_ImageSource>(
                       child: ClipRRect(
-                        child: Image(image:AssetImage('images/Goose.png')),
+                        child: image,
                         borderRadius: BorderRadius.circular(12.0),
-                      ), 
-                      onPressed: () =>
-                        Navigator.push(context, 
-                          MaterialPageRoute(builder: (context) => CameraDogPage(),
-                            settings: RouteSettings(name: 'AddDogPage'))
-                        )
+                      ),
+                      onSelected: (_ImageSource img) => _retrieveImage(context, img),
+                      itemBuilder: (BuildContext context) => <PopupMenuItem<_ImageSource> >[
+                        const PopupMenuItem<_ImageSource>(
+                          value: _ImageSource.gallery,
+                          child: Text('Choose an image from gallery'),
+                        ),
+                        const PopupMenuItem<_ImageSource>(
+                          value: _ImageSource.camera,
+                          child: Text('Take a picture'),
+                        ),
+                      ]
                     )
                   ),
                 width: MediaQuery.of(context).size.width / 2
@@ -132,11 +173,11 @@ class _AddDogPageState extends State<AddDogPage> {
               padding: EdgeInsets.all(8.0),
               child: TextFormField(
                 validator: (value) {
-                  if (value.isEmpty) {
+                  if (value.isEmpty)
                     return "Please enter your dog's name";
-                  }
                   return null;
                 },
+                controller: _nameController,
                 textAlign: TextAlign.center,
               )
             ),
@@ -152,7 +193,11 @@ class _AddDogPageState extends State<AddDogPage> {
               )
             ),
             RaisedButton(
-              onPressed: () { Navigator.pop(context); },
+              onPressed: () { 
+                _formKey.currentState.validate();
+                name = _nameController.text;
+                Navigator.pop(context, Dog(image, name, bday));
+              },
               child: Text('OK')
             )
           ],
@@ -163,130 +208,58 @@ class _AddDogPageState extends State<AddDogPage> {
   }
 }
 
-class CameraDogPage extends StatefulWidget {
-  @override
-  State<StatefulWidget> createState() => _CameraDogPageState();
+class CropPictureScreen extends StatefulWidget {
+  CropPictureScreen({Key key, this.imageFile}) : super(key: key);
+  final String imageFile;
+
+  State<StatefulWidget> createState() => _CropPictureScreenState();
 }
 
-class _CameraDogPageState extends State<CameraDogPage> {
-  CameraController _controller;
-  Future<void> _initializeControllerFuture;
-  bool isCameraReady = false;
-  bool showCapturedPhoto = false;
-  var imagePath;
-  @override
-  void initState() {
-    super.initState();
-    _initializeCamera(); 
-  }
-  @override
-  void dispose() {
-    // Dispose of the controller when the widget is disposed.
-    _controller.dispose();
-    super.dispose();
-  }
+class _CropPictureScreenState extends State<CropPictureScreen> {
+  File cropped;
 
-  Future<void> _initializeCamera() async {
-    final cameras = await availableCameras();
-    if (cameras.length == 0)
-      return;
-    final firstCamera = cameras.first;
-    _controller = CameraController(firstCamera,ResolutionPreset.high);
-    _initializeControllerFuture = _controller.initialize();
-    if (!mounted)
-      return;
-    setState(() {
-      isCameraReady = true;
-    });
-  }
-
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _controller != null) {
-      _initializeControllerFuture = _controller.initialize();
-      //on pause camera is disposed, so we need to call again "issue is only for android"
-    }
-  }
-
-  void onCaptureButtonPressed(BuildContext context) async {  //on camera button press
-    try {
-      final path = join(
-        (await getTemporaryDirectory()).path, //Temporary path
-          '${DateTime.now()}.png',
-      );
-      imagePath = path;
-      await _controller.takePicture(path); //take photo
-      setState(() {
-        showCapturedPhoto = true;
-        Navigator.push(context, 
-          MaterialPageRoute(builder: (context) => DisplayPictureScreen(imagePath: imagePath)));
-      });
-    } catch (e) {
-      print(e);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Take a picture')),
-      body: FutureBuilder<void>(
-        future: _initializeControllerFuture,
-        builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.done) {
-          final size = MediaQuery.of(context).size;
-          final deviceRatio = size.width / size.height;
-          // If the Future is complete, display the preview.
-          return Transform.scale(
-            scale: _controller.value.aspectRatio / deviceRatio,
-            child: Center(
-              child: AspectRatio(
-                aspectRatio: _controller.value.aspectRatio,
-                child: CameraPreview(_controller), //cameraPreview
-              ),
-            ));
-          } else {
-            return Center(
-              child: CircularProgressIndicator()
-            );
-          }
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async => onCaptureButtonPressed(context),
-        child: Icon(Icons.camera)
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat
+  Future<Null> _cropImage(context) async {
+    File croppedFile = await ImageCropper.cropImage(
+      sourcePath: widget.imageFile,
+      aspectRatio: CropAspectRatio(ratioY: 1.0, ratioX: 1.0),
+      aspectRatioPresets: [
+        CropAspectRatioPreset.square
+      ],
+      androidUiSettings: AndroidUiSettings(
+          toolbarTitle: 'Crop the picture',
+          toolbarColor: Colors.teal,
+          toolbarWidgetColor: Colors.white,
+          initAspectRatio: CropAspectRatioPreset.original,
+          lockAspectRatio: true),
+      iosUiSettings: IOSUiSettings(
+        minimumAspectRatio: 1.0,
+        title: 'Crop the picture',
+        resetAspectRatioEnabled: false,
+        aspectRatioPickerButtonHidden: true
+      )
     );
+    if (croppedFile != null && await croppedFile.exists()) {
+      cropped = croppedFile;
+      Navigator.pop(context, Image.file(cropped));
+    }
+    else {
+      Navigator.pop(context);
+    }
   }
-}
-
-class DisplayPictureScreen extends StatelessWidget {
-  final String imagePath;
-
-  const DisplayPictureScreen({Key key, this.imagePath}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(),
-      body: Image.file(File(imagePath)),
-      floatingActionButton:
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            FloatingActionButton(
-              onPressed: () { Navigator.pop(context); },
-              child: Icon(Icons.cancel),
-              heroTag: 0,
-              backgroundColor: Colors.red,),
-            Padding(padding: EdgeInsets.all(12.0),),
-            FloatingActionButton(
-              onPressed: () { Navigator.pop(context); },
-              child: Icon(Icons.check),
-              heroTag: 1,
-              backgroundColor: Colors.green)
-          ]
-        ),
+      body: FutureBuilder<void>(
+        future: _cropImage(context),
+        builder: (context, snapshot) {
+          return Center(
+            child: CircularProgressIndicator()
+          );
+        }
+      ),
+      backgroundColor: Colors.black,
     );
   }
 }
