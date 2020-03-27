@@ -8,6 +8,12 @@ class Dog with ChangeNotifier {
   String name;
   DateTime bday;
 
+  Dog.fromDog(Dog dog) {
+    image = dog.image;
+    name = dog.name;
+    bday = dog.bday;
+  }
+
   Dog(Image i, String n, DateTime b) {
     image = i; name = n; bday = b;
   }
@@ -31,6 +37,12 @@ class _DogPageState extends State<DogPage> {
     if (dog != null)
       dogs.add(DogCard(dog: dog));
   }
+
+  void replaceDog(int index, Dog dog) {
+    dogs.removeAt(index);
+    dogs.insert(index, DogCard(dog: dog));
+  }
+
   void removeDog(int index) {
     dogs.removeAt(index);
   }
@@ -51,27 +63,47 @@ class _DogPageState extends State<DogPage> {
           crossAxisAlignment: CrossAxisAlignment.end,
         ),
         Column(
-          children: dogs!=null&&dogs.length!=0 ? dogs : <Widget>[Column()]
+          children: dogs!=null && dogs.length!=0 ? dogs : <Widget>[Column()]
         )
       ]
     );
   }
 }
 
-class DogCard extends StatelessWidget {
+class DogCard extends StatefulWidget {
   DogCard({Key key, this.dog}) : super(key: key);
-
   final Dog dog;
+
+  _DogCardState createState() => _DogCardState();
+}
+
+class _DogCardState extends State<DogCard> {
+
+  void _editDog(BuildContext context) async {
+    Dog tmpDog;
+    tmpDog = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => EditDogNamePage()),
+    ) as Dog;
+    if (tmpDog != null) {
+      widget.dog.name = tmpDog.name;
+      widget.dog.bday = tmpDog.bday;
+      widget.dog.image = tmpDog.image;
+    }
+  }
 
   Widget build(BuildContext context) {
     return Center(
       child: Card(
         child: Column(
           children: <Widget>[
-            ListTile(
-              leading: ClipRRect(child: dog.image, borderRadius: BorderRadius.circular(10),),
-              title: Text(dog.name),
-              subtitle: Text(dog.bday.toString().split(' ')[0])
+            FlatButton(
+              child: ListTile(
+                leading: ClipRRect(child: widget.dog.image, borderRadius: BorderRadius.circular(10),),
+                title: Text(widget.dog.name),
+                subtitle: Text(widget.dog.bday.toString().split(' ')[0])
+              ),
+              onPressed: () { _editDog(context); }
             )
           ]
         ),
@@ -83,16 +115,16 @@ class DogCard extends StatelessWidget {
   }
 }
 
+enum _ImageSource {
+  gallery,
+  camera
+}
+
 class AddDogPage extends StatefulWidget {
   AddDogPage({Key key}) : super(key: key);
 
   @override
   State<AddDogPage> createState() => _AddDogPageState();
-}
-
-enum _ImageSource {
-  gallery,
-  camera
 }
 
 class _AddDogPageState extends State<AddDogPage> {
@@ -102,23 +134,11 @@ class _AddDogPageState extends State<AddDogPage> {
   DateTime bday = DateTime.now();
   final _nameController = TextEditingController();
 
-  void _retrieveImage(BuildContext context, _ImageSource source) async {
-    File img;
-    if (source == _ImageSource.camera)
-      img = await ImagePicker.pickImage(source: ImageSource.camera);
-    else if (source == _ImageSource.gallery)
-      img = await ImagePicker.pickImage(source: ImageSource.gallery);
-
-    if (img != null) {
-      final cropped = await Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => CropPictureScreen(imageFile: img.path)),
-      ) as Image;
-      setState(() {
-        if (cropped != null)
-          image = cropped;
-      });
-    }
+  callbackImage(Image img) {
+    setState(() {
+      if (img != null)
+        image = img;
+    });
   }
 
   Future<Null> _selectDate(BuildContext context) async {
@@ -146,40 +166,22 @@ class _AddDogPageState extends State<AddDogPage> {
         key: _formKey,
         child: Column(
           children: <Widget>[
-              Container(
-                child: Padding(
-                    padding: EdgeInsets.all(12.0),
-                    child: PopupMenuButton<_ImageSource>(
-                      child: ClipRRect(
-                        child: image,
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                      onSelected: (_ImageSource img) => _retrieveImage(context, img),
-                      itemBuilder: (BuildContext context) => <PopupMenuItem<_ImageSource> >[
-                        const PopupMenuItem<_ImageSource>(
-                          value: _ImageSource.gallery,
-                          child: Text('Choose an image from gallery'),
-                        ),
-                        const PopupMenuItem<_ImageSource>(
-                          value: _ImageSource.camera,
-                          child: Text('Take a picture'),
-                        ),
-                      ]
-                    )
-                  ),
-                width: MediaQuery.of(context).size.width / 2
-              ),
-            Padding(
+            DogImagePicker(callbackImage),
+            Center(
+              child: Container(
               padding: EdgeInsets.all(8.0),
+              width: MediaQuery.of(context).size.width / 2,
               child: TextFormField(
-                validator: (value) {
-                  if (value.isEmpty)
-                    return "Please enter your dog's name";
-                  return null;
-                },
-                controller: _nameController,
-                textAlign: TextAlign.center,
-              )
+                  validator: (value) {
+                    if (value.isEmpty)
+                      return "Please enter your dog's name";
+                    return null;
+                  },
+                  controller: _nameController,
+                  textAlign: TextAlign.center,
+                  textCapitalization: TextCapitalization.words,
+                )
+              ),
             ),
             Container(
               height: MediaQuery.of(context).size.height / 4,
@@ -188,15 +190,23 @@ class _AddDogPageState extends State<AddDogPage> {
                 SizedBox(height: 20.0,),
                 RaisedButton(
                   onPressed: () => _selectDate(context),
-                  child: Text("${bday.toLocal()}".split(' ')[0]),
+                  child: Row(
+                    children: <Widget> [
+                      Icon(Icons.calendar_today),
+                      Padding(padding: EdgeInsets.all(4.0)),
+                      Text("${bday.toLocal()}".split(' ')[0]),
+                    ],
+                    mainAxisSize: MainAxisSize.min,
+                  )
                 )]
               )
             ),
             RaisedButton(
               onPressed: () { 
-                _formKey.currentState.validate();
-                name = _nameController.text;
-                Navigator.pop(context, Dog(image, name, bday));
+                if (_formKey.currentState.validate()) {
+                  name = _nameController.text;
+                  Navigator.pop(context, Dog(image, name, bday));
+                }
               },
               child: Text('OK')
             )
@@ -204,6 +214,248 @@ class _AddDogPageState extends State<AddDogPage> {
         )
       ),
       resizeToAvoidBottomPadding: false,
+    );
+  }
+}
+
+class EditDogNamePage extends StatefulWidget {
+  EditDogNamePage({Key key}) : super(key: key);
+  _EditDogNamePageState createState() => _EditDogNamePageState();
+}
+
+class _EditDogNamePageState extends State<EditDogNamePage> {
+  final _formKey = GlobalKey<FormState>();
+  TextEditingController _nameController = TextEditingController();
+  String name;
+  Image image;
+  Dog dog;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: (AppBar(
+        title: Text('Edit Dog')
+        )
+      ),
+      body: Center(
+        child: Container(
+          padding: EdgeInsets.all(8.0),
+          margin: EdgeInsets.all(30.0),
+          child: Column(
+            children: <Widget>[
+              Text("What's your dog's name?"),
+              Form(
+                key: _formKey,
+                child: TextFormField(
+                  textCapitalization: TextCapitalization.words,
+                  textAlign: TextAlign.center,
+                  controller: _nameController,
+                  validator: (value) {
+                    if (value.isEmpty)
+                      return "Please enter your dog's name";
+                    return null;
+                  },
+                )
+              )
+            ],
+          )
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        child: Text('Next >'),
+        onPressed: () async {
+          if (_formKey.currentState.validate()) {
+            name = _nameController.text;
+            dog = await Navigator.push(context,
+              MaterialPageRoute(builder: (context) => EditDogImagePage(name: name)),
+            ) as Dog;
+            if (dog != null)
+              Navigator.pop(context, dog);
+            else
+              Navigator.pop(context);
+          }
+        },
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+}
+
+class EditDogImagePage extends StatefulWidget {
+  EditDogImagePage({Key key, this.name}) : super(key: key);
+  final String name;
+
+  _EditDogImagePageState createState() => _EditDogImagePageState();
+}
+
+class _EditDogImagePageState extends State<EditDogImagePage> {
+  Image image = Image.asset('images/Goose.png');
+  Dog dog;
+
+  callbackImage(Image img) {
+    setState(() {
+      if (img != null)
+        image = img;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Edit Dog'),),
+      body: Center( 
+        child: Column(
+          children: <Widget>[
+            DogImagePicker(callbackImage),
+            Padding(
+              child: Text('Choose a picture for ${widget.name}\'s profile!'),
+              padding: EdgeInsets.all(30))
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        child: Text('Next >'),
+        onPressed: () async {
+          dog = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => EditDogDatePage(name: widget.name, image: image))
+          ) as Dog;
+          if (dog != null)
+            Navigator.pop(context, dog);
+          else
+            Navigator.pop(context);
+        },),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+}
+
+class EditDogDatePage extends StatefulWidget {
+  EditDogDatePage({Key key, this.name, this.image}) : super(key: key);
+  final String name;
+  final Image image;
+  @override
+  _EditDogDatePageState createState() => _EditDogDatePageState();
+}
+
+class _EditDogDatePageState extends State<EditDogDatePage> {
+  DateTime bday = DateTime.now();
+
+  Future<Null> _selectDate(BuildContext context) async {
+    final DateTime picked = await showDatePicker(
+      context: context,
+      initialDate: bday,
+      firstDate: DateTime(2000, 1),
+      lastDate: DateTime.now(),
+      initialDatePickerMode: DatePickerMode.year);
+    if (picked != null && picked != bday) {
+      setState(() {
+        bday = picked;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Edit Dog'),),
+      body: Center( 
+        child: Column(
+          children: <Widget>[
+            Padding(
+              child: RaisedButton(
+                onPressed: () { _selectDate(context); },
+                child: Center(
+                  child: Column(
+                    children: <Widget>[
+                      Icon(Icons.calendar_today),
+                      Text("${bday.toLocal()}".split(' ')[0]),
+                    ],
+                  )
+                ),
+              ),
+              padding: EdgeInsets.all(30)
+            ),
+            Padding(
+              child: Text('When was ${widget.name} born?'),
+              padding: EdgeInsets.all(30)
+            ),
+            Padding(
+              child: RaisedButton(
+                child: Text('OK'),
+                onPressed: () {
+                  Navigator.pop(context, Dog(widget.image, widget.name, bday));
+                },
+              ),
+              padding: EdgeInsets.all(20)
+            )
+          ],
+        ),
+      )
+    );
+  }
+}
+
+class DogImagePicker extends StatefulWidget {
+  DogImagePicker(this.callback);
+
+  final Function(Image) callback;
+
+  _DogImagePickerState createState() => _DogImagePickerState();
+}
+
+class _DogImagePickerState extends State<DogImagePicker> {
+  Image image = Image.asset('images/Goose.png');
+
+  void _retrieveImage(BuildContext context, _ImageSource source) async {
+    File img;
+    if (source == _ImageSource.camera)
+      img = await ImagePicker.pickImage(source: ImageSource.camera);
+    else if (source == _ImageSource.gallery)
+      img = await ImagePicker.pickImage(source: ImageSource.gallery);
+
+    if (img != null) {
+      final cropped = await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => CropPictureScreen(imageFile: img.path)),
+      ) as Image;
+      if (cropped != null) {
+        image = cropped;
+      }
+    }
+    if (image != null)
+      widget.callback(image);
+  }
+
+  Widget build(BuildContext context) {
+    return Container(
+      child: Padding(
+        padding: EdgeInsets.all(12.0),
+        child: PopupMenuButton<_ImageSource>(
+          child: ClipRRect(
+            child: image,
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          onSelected: (_ImageSource img) => _retrieveImage(context, img),
+          itemBuilder: (BuildContext context) => <PopupMenuItem<_ImageSource> >[
+            const PopupMenuItem<_ImageSource>(
+              value: _ImageSource.gallery,
+              child: Text('Choose an image from gallery'),
+            ),
+            const PopupMenuItem<_ImageSource>(
+              value: _ImageSource.camera,
+              child: Text('Take a picture'),
+            ),
+          ]
+        )
+      ),
+      width: MediaQuery.of(context).size.width / 2
     );
   }
 }
