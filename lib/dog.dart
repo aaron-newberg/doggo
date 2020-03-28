@@ -54,7 +54,7 @@ class _DogPageState extends State<DogPage> {
           children: <Widget>[
             FloatingActionButton(
             onPressed: () {
-              _retrieveFromAddDogPage(context, AddDogPage());
+              _retrieveFromAddDogPage(context, AddDogNamePage());
             },
             child: Icon(Icons.add),
             mini: true,
@@ -83,7 +83,7 @@ class _DogCardState extends State<DogCard> {
     Dog tmpDog;
     tmpDog = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => EditDogNamePage()),
+      MaterialPageRoute(builder: (context) => EditDogPage(dog: widget.dog)),
     ) as Dog;
     if (tmpDog != null) {
       widget.dog.name = tmpDog.name;
@@ -120,25 +120,34 @@ enum _ImageSource {
   camera
 }
 
-class AddDogPage extends StatefulWidget {
-  AddDogPage({Key key}) : super(key: key);
-
+class EditDogPage extends StatefulWidget {
+  EditDogPage({Key key, this.dog}) : super(key: key);
+  final Dog dog;
   @override
-  State<AddDogPage> createState() => _AddDogPageState();
+  State<EditDogPage> createState() => _EditDogPageState();
 }
 
-class _AddDogPageState extends State<AddDogPage> {
+class _EditDogPageState extends State<EditDogPage> {
   final _formKey = GlobalKey<FormState>();
   Image image = Image(image:AssetImage('images/Goose.png'));
   String name;
   DateTime bday = DateTime.now();
-  final _nameController = TextEditingController();
+  var _nameController;
 
   callbackImage(Image img) {
     setState(() {
       if (img != null)
         image = img;
     });
+  }
+  
+  @override
+  void initState() {
+    super.initState();
+    image = widget.dog.image;
+    name = widget.dog.name;
+    _nameController = TextEditingController(text: name);
+    bday = widget.dog.bday;
   }
 
   Future<Null> _selectDate(BuildContext context) async {
@@ -149,7 +158,9 @@ class _AddDogPageState extends State<AddDogPage> {
       lastDate: DateTime.now(),
       initialDatePickerMode: DatePickerMode.year);
     if (picked != null && picked != bday)
-      bday = picked;
+      setState(() {
+        bday = picked;
+      });
   }
 
   @override
@@ -161,12 +172,12 @@ class _AddDogPageState extends State<AddDogPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Add dog')),
+      appBar: AppBar(title: Text('Edit dog')),
       body: Form(
         key: _formKey,
         child: Column(
           children: <Widget>[
-            DogImagePicker(callbackImage),
+            DogImagePicker(callbackImage, widget.dog.image),
             Center(
               child: Container(
               padding: EdgeInsets.all(8.0),
@@ -218,12 +229,12 @@ class _AddDogPageState extends State<AddDogPage> {
   }
 }
 
-class EditDogNamePage extends StatefulWidget {
-  EditDogNamePage({Key key}) : super(key: key);
-  _EditDogNamePageState createState() => _EditDogNamePageState();
+class AddDogNamePage extends StatefulWidget {
+  AddDogNamePage({Key key}) : super(key: key);
+  _AddDogNamePageState createState() => _AddDogNamePageState();
 }
 
-class _EditDogNamePageState extends State<EditDogNamePage> {
+class _AddDogNamePageState extends State<AddDogNamePage> {
   final _formKey = GlobalKey<FormState>();
   TextEditingController _nameController = TextEditingController();
   String name;
@@ -240,7 +251,7 @@ class _EditDogNamePageState extends State<EditDogNamePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: (AppBar(
-        title: Text('Edit Dog')
+        title: Text('Add Dog')
         )
       ),
       body: Center(
@@ -273,7 +284,7 @@ class _EditDogNamePageState extends State<EditDogNamePage> {
           if (_formKey.currentState.validate()) {
             name = _nameController.text;
             dog = await Navigator.push(context,
-              MaterialPageRoute(builder: (context) => EditDogImagePage(name: name)),
+              MaterialPageRoute(builder: (context) => AddDogImagePage(name: name)),
             ) as Dog;
             if (dog != null)
               Navigator.pop(context, dog);
@@ -287,14 +298,14 @@ class _EditDogNamePageState extends State<EditDogNamePage> {
   }
 }
 
-class EditDogImagePage extends StatefulWidget {
-  EditDogImagePage({Key key, this.name}) : super(key: key);
+class AddDogImagePage extends StatefulWidget {
+  AddDogImagePage({Key key, this.name}) : super(key: key);
   final String name;
 
-  _EditDogImagePageState createState() => _EditDogImagePageState();
+  _AddDogImagePageState createState() => _AddDogImagePageState();
 }
 
-class _EditDogImagePageState extends State<EditDogImagePage> {
+class _AddDogImagePageState extends State<AddDogImagePage> {
   Image image = Image.asset('images/Goose.png');
   Dog dog;
 
@@ -308,11 +319,11 @@ class _EditDogImagePageState extends State<EditDogImagePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Edit Dog'),),
+      appBar: AppBar(title: Text('Add Dog'),),
       body: Center( 
         child: Column(
           children: <Widget>[
-            DogImagePicker(callbackImage),
+            DogImagePicker(callbackImage, image),
             Padding(
               child: Text('Choose a picture for ${widget.name}\'s profile!'),
               padding: EdgeInsets.all(30))
@@ -324,7 +335,7 @@ class _EditDogImagePageState extends State<EditDogImagePage> {
         onPressed: () async {
           dog = await Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => EditDogDatePage(name: widget.name, image: image))
+            MaterialPageRoute(builder: (context) => AddDogDatePage(name: widget.name, image: image))
           ) as Dog;
           if (dog != null)
             Navigator.pop(context, dog);
@@ -336,15 +347,15 @@ class _EditDogImagePageState extends State<EditDogImagePage> {
   }
 }
 
-class EditDogDatePage extends StatefulWidget {
-  EditDogDatePage({Key key, this.name, this.image}) : super(key: key);
+class AddDogDatePage extends StatefulWidget {
+  AddDogDatePage({Key key, this.name, this.image}) : super(key: key);
   final String name;
   final Image image;
   @override
-  _EditDogDatePageState createState() => _EditDogDatePageState();
+  _AddDogDatePageState createState() => _AddDogDatePageState();
 }
 
-class _EditDogDatePageState extends State<EditDogDatePage> {
+class _AddDogDatePageState extends State<AddDogDatePage> {
   DateTime bday = DateTime.now();
 
   Future<Null> _selectDate(BuildContext context) async {
@@ -364,7 +375,7 @@ class _EditDogDatePageState extends State<EditDogDatePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Edit Dog'),),
+      appBar: AppBar(title: Text('Add Dog'),),
       body: Center( 
         child: Column(
           children: <Widget>[
@@ -403,15 +414,22 @@ class _EditDogDatePageState extends State<EditDogDatePage> {
 }
 
 class DogImagePicker extends StatefulWidget {
-  DogImagePicker(this.callback);
+  DogImagePicker(this.callback, this.initialImage);
 
   final Function(Image) callback;
+  final Image initialImage;
 
   _DogImagePickerState createState() => _DogImagePickerState();
 }
 
 class _DogImagePickerState extends State<DogImagePicker> {
   Image image = Image.asset('images/Goose.png');
+
+  @override
+  void initState() {
+    super.initState();
+    image = widget.initialImage;
+  }
 
   void _retrieveImage(BuildContext context, _ImageSource source) async {
     File img;
